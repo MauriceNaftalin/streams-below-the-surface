@@ -1,11 +1,11 @@
-package com.horstmann.streams.benchmarks;
+package scot.jalba.streams.benchmarks;
 
 import java.awt.*;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 
-import com.horstmann.streams.Points;
+import scot.jalba.streams.Points;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 

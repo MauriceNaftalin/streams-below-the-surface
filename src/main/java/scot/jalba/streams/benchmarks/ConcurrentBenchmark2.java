@@ -1,6 +1,6 @@
-package com.horstmann.streams.benchmarks;
+package scot.jalba.streams.benchmarks;
 
-import com.horstmann.streams.Points;
+import scot.jalba.streams.Points;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 

@@ -1,8 +1,8 @@
-package com.horstmann.streams.demos;
+package scot.jalba.streams.demos;
 
 import module java.base;
 import module java.desktop;
-import com.horstmann.streams.Points;
+import scot.jalba.streams.Points;
 
 class FilterMapDemo {
     int POINTS = 100_000_000;

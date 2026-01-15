@@ -1,4 +1,4 @@
-package com.horstmann.streams.demos;
+package scot.jalba.streams.demos;
 
 import java.util.stream.IntStream;
 import java.util.stream.Stream;

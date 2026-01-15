@@ -1,4 +1,4 @@
-package com.horstmann.streams.benchmarks;
+package scot.jalba.streams.benchmarks;
 
 import module java.base;
 
@@ -6,7 +6,7 @@ import org.openjdk.jmh.annotations.*;
 
 import static java.util.concurrent.TimeUnit.*;
 
-public class MyBenchmark {
+public class GathererBenchmark {
     private static final int NUMBER_OF_ELEMENTS_PER_RUN = 10_000;
     private static final List<Integer> origin = prepareOriginList();
 

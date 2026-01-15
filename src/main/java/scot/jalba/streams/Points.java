@@ -1,4 +1,4 @@
-package com.horstmann.streams;
+package scot.jalba.streams;
 
 import java.awt.*;
 import java.util.random.RandomGenerator;

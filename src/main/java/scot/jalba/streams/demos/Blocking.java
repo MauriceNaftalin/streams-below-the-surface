@@ -1,7 +1,8 @@
-package com.horstmann.streams.demos;
+package scot.jalba.streams.demos;
 
 import java.util.stream.Gatherers;
 import java.util.stream.IntStream;
+import static scot.jalba.streams.Util.time;
 
 public class Blocking {
     String task(int i) {
@@ -10,13 +11,6 @@ public class Blocking {
         } catch (InterruptedException _) {
         }
         return i + " " + Thread.currentThread().toString();
-    }
-
-    void time(Runnable r) {
-        long start = System.nanoTime();
-        r.run();
-        long end = System.nanoTime();
-        IO.println("%.3f sec".formatted((end - start) / 1E9));
     }
 
     void main() {
