@@ -1,0 +1,598 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns='http://www.w3.org/1999/xhtml'><head><meta http-equiv='content-type' content='text/html; charset=utf-8'/>
+    <title></title>
+    <meta content='Copyright 2025 Cay S. Horstmann' name='copyright'/>
+    <link href='../../../Slidy2/styles/slidy.css' media='screen, projection, print' rel='stylesheet' type='text/css'/>
+    <link href='../../../MySlidy/style.css' media='screen, projection, print' rel='stylesheet' type='text/css'/> <!-- custom style rules below -->
+    <script type='text/javascript' charset='utf-8' src='../../../Slidy2/scripts/slidy.js'></script>
+    <script type='text/javascript' charset='utf-8' src='../../../MySlidy/slidy.js'></script>
+  </head>
+  <script src='../../../diagrams/script.js'></script>
+  <script>//<![CDATA[
+const symbols = (items, colors, vertical) => {
+  nodes = []
+  for (let i = 0; i < items.length; i++) nodes.push(text( { color: colors[i] }, items[i] ))
+  return vertical ? vbox({}, ...nodes) : hbox({}, ...nodes)
+}
+
+const box = (content) => text({ border: 'solid thin black', margin: '0.1em'}, content)
+
+// ]]></script>
+
+  <link href='../../../diagrams/styles.css' rel='stylesheet' type='text/css'/>
+
+  <!--
+
+Java programmers ❤️ streams! They brought us at least some of the joys of functional programming: code that’s clear and elegant, and even, sometimes, performant. But how do they work? Many people don’t know, and that puts them in danger of writing code that seriously underperforms. In this talk we’ll look at the principles and some details of the implementation, and we’ll work out some useful principles about how – and even whether – to use streams in practice. The talk will be up to date with the new feature of Gatherers, revealing the mystery of the greedy flag.
+
+You’ll come away from this talk with a new understanding of how streams work, the assumptions that underlie their design, and how you too can write stream code that both looks good and performs well.
+
+
+
+TODO
+
+Use JBang for the benchmarks
+https://gist.github.com/Genzer/9cdd0768e45b371a9813c9ac71960107
+
+Try to understand the JITted code better
+Experiment when JIT kicks in
+
+Surprises
+- distinct skipped on set, but how do we know?
+
+https://www.reddit.com/r/java/comments/1gukzhb/a_surprising_pain_point_regarding_parallel_java/
+parallel().gather(windowFixed(SOME_BATCH_SIZE)).forEach(Foo::processBatch)
+
+
+jshell> IntStream.range(0, 1_000_000).boxed().parallel().filter(x -> x % 2 == 0).map(_ -> Thread.currentThread().getName()).limit(1000).distinct().toList()
+$10 ==> [ForkJoinPool.commonPool-worker-1]
+
+jshell> IntStream.range(0, 1_000_000).boxed().parallel().limit(1000).filter(x -> x % 2 == 0).map(_ -> Thread.currentThread().getName()).distinct().toList()
+$11 ==> [ForkJoinPool.commonPool-worker-4, ForkJoinPool.commonPool-worker-5, ForkJoinPool.commonPool-worker-13, ForkJoinPool.commonPool-worker-11, ForkJoinPool.commonPool-worker-8, ForkJoinPool.commonPool-worker-9, ForkJoinPool.commonPool-worker-10, ForkJoinPool.commonPool-worker-12, ForkJoinPool.commonPool-worker-2, ForkJoinPool.commonPool-worker-1, ForkJoinPool.commonPool-worker-3, ForkJoinPool.commonPool-worker-6, ForkJoinPool.commonPool-worker-7, main]
+
+
+
+
+From François Martin:
+
+https://github.com/martinfrancois/baselone-2025/blob/main/code.md
+
+Don't call toList().size()
+Don't call map with primitive results map(Circle::radius).reduce(0.0, Double::sum)
+
+
+https://daniel.avery.io/writing/the-java-streams-parallel
+
+-->
+
+  <body><h1>Streams—Below the Surface</h1>
+    <p style='text-align:center'><img style='width:25%' src='../../topics/streams-below-the-surface/405-driewerelden.webp' alt='.webp' loading='lazy'/>
+    </p>
+    <p><a href='code.zip'>📥 Download source code</a></p>
+
+    <h1>About the Speakers</h1>
+    <p class='rightimage'><img src='../../topics/streams-below-the-surface/Statler-Waldorf-thumbs.png' alt='.png' loading='lazy'/>
+    </p>
+    <ul><li>Cay Horstmann and Maurice Naftalin</li>
+      <li>Authors of Core Java, Scala for the Impatient, ... (Cay) | Java Generics and Collections, Mastering Lambdas (Maurice)</li>
+      <li>Java Champions <img src='../../../favicon.ico' alt='.ico' loading='lazy'/></li>
+      <li><a href='https://horstmann.com'>https://horstmann.com</a> | <a href='https://naftalin.info/maurice/professional/'>https://naftalin.info/maurice/professional/</a></li>
+    </ul>
+
+    <h1>Why Use Streams?</h1>
+    <p class='rightimage'><img src='../../topics/streams-under-the-hood/Ocean-Vuong-Book-Cover.png' alt='.png' loading='lazy'/></p>
+    <ul><li>Declarative (“what, not how”)
+        <pre>Point largest = Stream.of(points)
+    .filter(Points::isShort)
+    .max(Comparator.comparingInt(Points::lengthSquared))
+    .orElseThrow();
+</pre></li>
+      <li> instead of
+        <pre>Point largest = points.get(0);
+for (int i = 1; i &lt; points.size(); i++) {
+    Point p = points.get(i);
+    if (Points.isShort(p)) {
+        if (Points.lengthSquared(p) &gt; Points.lengthSquared(largest))
+            largest = p;
+    }
+}
+</pre></li>
+      <li>Briefly gorgeous in 2014</li>
+      <li>Having a moment again ten years later
+        <ul><li><a href='https://dev.java/learn/refactoring-to-functional-style/'>Venkat Subramaniam at Dev.java</a></li>
+          <li><a href='https://www.youtube.com/watch?v=GwKRRsjfBOA&amp;list=PLRsbF2sD7JVrNB1mKqklpc23hsKtvMAXm&amp;index=22'>Maurice Naftalin and José Paumard at Devoxx Belgium 2024</a></li>
+          <li><a href='https://horstmann.com/presentations/2024/baselone'>Cay Horstmann at Basel One 2024</a></li>
+          <li>Gatherer API in Java 25</li>
+        </ul>
+      </li>
+      <li>Can be parallelized (sometimes)</li>
+    </ul>
+
+    <h1>What About Performance?</h1>
+
+    <p class='rightimage'><img src='../../topics/valhalla/benchmark.webp' alt='.webp' loading='lazy'/></p>
+    <ul><li>JMH benchmark with pre-initialized <code>state.randomPointArray</code>, comparing
+        <pre>Point[] points = state.randomPointArray;
+Point largest = points[0];
+for (int i = 1; i &lt; points.length; i++) {
+    Point p = points[i];
+    if (Points.isShort(p)) {
+        if (Points.lengthSquared(p) &gt; Points.lengthSquared(largest))
+            largest = p;
+    }
+}
+</pre> with
+        <pre>Point largest = Stream.of(state.randomPointArray)
+    .filter(Points::isShort)
+    .max(Comparator.comparingInt(Points::lengthSquared))
+    .orElseThrow();
+</pre></li>
+      <li>With 10_000_000 points:
+        <pre>FilterMaxBenchmark.withArray       avgt  100  178.251 ± 2.087  ms/op
+FilterMaxBenchmark.withStream      avgt  100  205.245 ± 2.769  ms/op
+</pre></li>
+      <!-- TODO keep this link or find a better one?
+
+https://belief-driven-design.com/how-fast-are-streams-really-ad9cc/
+https://kth.diva-portal.org/smash/get/diva2:1783234/FULLTEXT01.pdf
+-->
+      <li><a href='https://nipafx.dev/java-stream-performance/'>Benchmarks by Nikolai Parlog</a>: serial streams a bit slower than equivalent loops</li>
+      <li>With small data sets, or with long pipelines, streams are less competitive (see <a href='https://www.diva-portal.org/smash/get/diva2:1783234/FULLTEXT01.pdf'>benchmarks by Magnus Åkerfeldt </a>)</li>
+    </ul>
+
+    <h1>Peeking Under the Hood</h1>
+    <p class='rightimage'><img src='Three_people_next_to_car_with_open_hood_near_Gilleleje,_Denmark.png' alt='.png' loading='lazy'/></p>
+    <ul><li>Trace into stream calls with debugger</li>
+      <li>Intellij: Settings → Build, Execution, Deployment → Debugger → Stepping
+        <ul><li style='list-style-type: none'>☑ Always do smart step into</li>
+          <li style='list-style-type: none'>☐ Do not step into these classes (you want to step in)</li>
+        </ul>
+      </li>
+      <li>Set breakpoint to <code>.filter(...)</code> in this snippet:
+        <pre>        return Stream.of(points)
+            .filter(Points::isShort)
+            .map(Points::lengthSquared)
+            .max(Integer::compare)
+            .orElseThrow();
+</pre></li>
+      <li>Step into (F7) to see that it returns <code>new StatelessOp&lt;&gt;(...)</code>.</li>
+      <li>Step out (Shift+F8), step into <code>.map(...)</code>, also returns <code>new StatelessOp&lt;&gt;(...)</code>. </li>
+      <li>🔑 <b>Key point:</b> Not doing any filtering or mapping yet, just setting up the pipeline</li>
+      <li>This is the pipeline: <br/>
+        <div class='diagram'><script>//<![CDATA[
+addDiagram(diagram => {
+  const spliterator = box('Spliterator')
+  const filter = box('Filter')
+  const map = box('Map')
+  const max = box('Max')
+  diagram.add(vbox({}, vgap(150), hbox({},
+    spliterator, hgap(50),
+    filter, hgap(50),
+    map, hgap(50),
+    max)))
+  diagram.caption('Terminal op', max)
+  diagram.connect(bentArrow,
+    spliterator,  filter, filter, map, map,
+    max)
+})
+//]]></script>
+        </div>
+      </li>
+    </ul>
+
+
+
+    <h1>Pushing Elements Through</h1>
+    <ul><li>When the <em>terminal</em> op (here, <code>max</code>) is called, elements start flowing
+        <div class='diagram'><script>//<![CDATA[
+addDiagram(diagram => {
+  const spliterator = box('Spliterator')
+  const filter = box('Filter')
+  const map = box('Map')
+  const max = box('Max')
+  const s1 = symbols('●●●●●●●●', ['green', 'red', 'yellow', 'blue', 'orange', 'brown', 'purple', 'black'])
+  const s2 = symbols('●●●', ['green', 'blue', 'purple'])
+  const s3 = symbols('■■■', ['green', 'blue', 'purple'])
+  const s4 = symbols('■', ['blue'])
+
+  diagram.add(hbox({},
+    spliterator, s1,
+    filter, s2,
+    map, s3,
+    max, s4))
+
+/*
+  diagram.connect(bentArrow,
+    spliterator,  filter, filter, map, map,
+    max)
+*/
+})
+//]]></script>
+        </div>
+
+      </li>
+      <li>Terminal op calls <pre>spliterator.forEachRemaining(sink);</pre></li>
+      <li>Passes elements to <code>accept</code> methods of downstream stages</li>
+      <li>Let’s add <code>.limit(5)</code> after the <code>map</code>:        <div class='diagram'><script>//<![CDATA[
+addDiagram(diagram => {
+  const spliterator = box('Spliterator')
+  const filter = box('Filter')
+  const map = box('Map')
+  const limit = box('Limit')
+  const max = box('Max')
+  diagram.add(vbox({}, vgap(150), hbox({},
+    spliterator, hgap(50),
+    filter, hgap(50),
+    map, hgap(50),
+    limit, hgap(50),
+    max)))
+  diagram.caption('Short circuit', limit)
+  diagram.connect(bentArrow,
+    spliterator,  filter, filter, map, map, limit, limit,
+    max)
+})
+//]]></script>
+        </div>
+      </li>
+      <li>Evaluation strategy changes to
+        <pre>while (!sink.cancellationRequested() &amp;&amp; spliterator.tryAdvance(sink)) ;
+</pre></li>
+      <li>🔑 <b>Key point:</b> Evaluation strategy depends on pipeline structure</li>
+      <li>Execution steps:
+        <ol><li>Build pipeline</li>
+          <li>Develop strategy</li>
+          <li>Push elements</li>
+        </ol>
+      </li>
+    </ul>
+
+    <h1>Optimizations</h1>
+    <ul><li>If pipeline is <em>sized</em> and ends in <code>toList()</code>, allocates array of the correct size and places each element
+        <pre>list.stream().map(String::toUpperCase).toList()
+</pre>
+
+        <div class='diagram'><script>//<![CDATA[
+addDiagram(diagram => {
+  const spliterator = box('Spliterator')
+  const s1 = symbols('●●●●', ['green', 'red', 'yellow', 'blue'])
+  const s2 = symbols('■■■■', ['green', 'red', 'yellow', 'blue'])
+  const terminal = box('ToList')
+  const t1 = symbols('■', ['green'])
+  const t2 = symbols('■', ['red'])
+  const t3 = symbols('■', ['yellow'])
+  const t4 = symbols('■', ['blue'])
+  const array = vbox({ border: 'thin solid black' }, t1, t2, t3, t4)
+
+  diagram.add(hbox({},
+    spliterator,
+    s1,
+    box('Map'),
+    s2,
+    terminal,
+    hgap(50),
+    array
+  ))
+
+  diagram.connect(bentArrow,
+    terminal, t1, terminal, t2, terminal, t3, terminal, t4)
+})
+
+//●◆▲■⬟⬢◩◪▩⬬⬮
+// ]]></script>
+
+        </div>
+
+      </li>
+      <li>If pipeline is sized and ends in <code>count</code>, intermediate steps are skipped!
+        <pre>List.of(names).stream().<del>map(String::toUpperCase).peek(IO::println).</del>count()
+</pre></li>
+      <li>If upstream is distinct, <code>distinct</code> is skipped:
+        <pre>Set.of(names).stream().<del>distinct().</del>...
+</pre></li>
+      <li>If upstream is sorted in natural order, <code>sorted()</code> is skipped:
+        <pre>new TreeSet&lt;&gt;(names).stream().<del>sorted().</del>...
+</pre>
+      </li>
+    </ul>
+    <h1>Memory Consumption</h1>
+    <p class='rightimage'><img src='../../topics/when-to-stream/memory-stream-loop.png' alt='.png' loading='lazy'/></p>
+    <ul><li>Be aware of <em>buffering</em>: <code>distinct</code>, <code>sorted</code> must buffer elements
+        <div class='diagram'><script>//<![CDATA[
+addDiagram(diagram => {
+  const spliterator = box('Spliterator')
+  const distinct = box('Distinct')
+  const sort = box('Sort')
+  const terminal = box('Terminal op')
+
+  diagram.add(vbox({},
+    vgap(150),
+    hbox({},
+    spliterator,
+    text({ fontSize: '0.7em' }, '166434246304'),
+    distinct,
+    text({ fontSize: '0.7em' }, '164320'),
+    sort,
+    text({ fontSize: '0.7em' }, '012346'),
+    terminal
+  )))
+  diagram.caption('Keeps set of seen values', distinct)
+  diagram.caption('Can only push after buffering all values', sort)
+})// ]]></script>
+        </div>
+      </li>
+      <li>Beware of unnecessary <em>boxing</em>
+        <pre>result = points.stream().map(p -&gt; Math.hypot(p.x(), p.y())).reduce(0.0, Double::sum); // 👎
+result = points.stream().map<b>ToDouble</b>(p -&gt; Math.hypot(p.x(), p.y())).sum(); // 👍
+</pre></li>
+      <li>Setting up the <em>stream pipeline</em> requires some memory</li>
+      <li>JIT can often optimize away memory allocations in the loop that pushes elements</li>
+      <li>Setup costs noticeable in nested streams
+        <ul><li>Example: Looping 100_000 times over stream calculation produced about 20MB of garbage</li>          <li></li>
+        </ul>
+      </li>
+    </ul>
+
+    <h1>Parallel Streams</h1>
+    <ul><li>Parallel stream splits work among threads:
+        <pre>Point largest = Stream.of(randomPointArray)
+    <b>.parallel()</b>
+    .map(Points::rotate)
+    .toList();
+</pre></li>
+      <li><em>Spliterator</em> splits data source in two chunks of equal size</li>
+      <li>Repeat until size is small enough (by default, original size / 4<var>n</var>, where <var>n</var> = number of cores)</li>
+      <li>Threads from global fork-join pool operate on chunks</li>
+      <li>Results are assembled in order</li>
+      <li>The position of <code>parallel</code> doesn’t matter—the <em>pipeline</em> is parallel</li>
+      <li>Happy day scenario: <var>n</var>-fold speedup
+        <pre>ConcurrentBenchmark1.withParallelStream  avgt  100   19.082 ± 0.212  ms/op
+ConcurrentBenchmark1.withSerialStream    avgt  100  203.989 ± 3.187  ms/op
+</pre></li>
+      <li><div class='diagram'><script>//<![CDATA[
+addDiagram(diagram => {
+  const spliterator = box('Spliterator')
+  const s11 = symbols('●●', ['green', 'red'])
+  const s12 = symbols('■■', ['green', 'red'])
+  const s21 = symbols('●●', ['yellow', 'blue'])
+  const s22 = symbols('■■', ['yellow', 'blue'])
+  const s31 = symbols('●●', ['orange', 'brown'])
+  const s32 = symbols('■■', ['orange', 'brown'])
+  const s41 = symbols('●●', ['purple', 'black'])
+  const s42 = symbols('■■', ['purple', 'black'])
+  const s51 = symbols('■■', ['green', 'red'], true)
+  const s52 = symbols('■■', ['yellow', 'blue'], true)
+  const s53 = symbols('■■', ['orange', 'brown'], true)
+  const s54 = symbols('■■', ['purple', 'black'], true)
+
+  const terminal1 = box('ToList')
+  const terminal2 = box('ToList')
+  const terminal3 = box('ToList')
+  const terminal4 = box('ToList')
+
+  diagram.add(hbox({},
+    spliterator,
+    hgap(50),
+    vbox({},
+      hbox({}, s11, box('Map'), s12, terminal1),
+      hbox({}, s21, box('Map'), s22, terminal2),
+      hbox({}, s31, box('Map'), s32, terminal3),
+      hbox({}, s41, box('Map'), s42, terminal4)),
+    hgap(50),
+    vbox({}, s51, s52, s53, s54)
+  ))
+
+  diagram.connect(bentArrow,
+    spliterator, s11,
+    spliterator, s21,
+    spliterator, s31,
+    spliterator, s41,
+    s12, terminal1,
+    s22, terminal2,
+    s32, terminal3,
+    s42, terminal4,
+    terminal1, s51,
+    terminal2, s52,
+    terminal3, s53,
+    terminal4, s54,
+)
+})
+//●◆▲■⬟⬢◩◪▩⬬⬮
+// ]]></script>
+        </div>
+      </li>
+
+
+
+    </ul>
+    <!--  TODO example in benchmark should match image -->
+    <!-- TODO Expand on parallel collection in general -->
+
+
+
+  <h1>Parallel Streams Don't Speculate</h1>
+  <ul><li>What is wrong with this pipeline?
+      <pre>long result = Stream.of(state.randomPointArray)
+    .parallel()
+    .mapToLong(p -&gt; (long) p.x * p.x + (long) p.y * p.y)
+    .filter(p -&gt; p &lt; Integer.MAX_VALUE)
+    .limit(ITERATIONS / 10)
+    .max()
+    .orElseThrow();
+</pre></li>
+      <li>This is not actually going to happen:
+      <div class='diagram'><script>//<![CDATA[
+addDiagram(diagram => {
+  const spliterator = box('Spliterator')
+  const s11 = symbols('●●', ['green', 'red'])
+  const s12 = symbols('■■', ['green', 'red'])
+  const s13 = symbols('■■', ['green', 'white'])
+  const s21 = symbols('●●', ['yellow', 'blue'])
+  const s22 = symbols('■■', ['yellow', 'blue'])
+  const s23 = symbols('■■', ['yellow', 'blue'])
+  const s31 = symbols('●●', ['orange', 'brown'])
+  const s32 = symbols('■■', ['orange', 'brown'])
+  const s33 = symbols('■■', ['brown', 'white'])
+  const s41 = symbols('●●', ['purple', 'black'])
+  const s42 = symbols('■■', ['purple', 'black'])
+  const s43 = symbols('■■', ['purple', 'black'])
+  const s5 = symbols('■■■■■■', ['green', 'yellow', 'blue', 'brown', 'purple', 'black'])
+  const s6 = symbols('■■■', ['green', 'yellow', 'blue'])
+
+  const limit = box('Limit')
+  const terminal = box('Collect')
+
+  diagram.add(hbox({},
+    spliterator,
+    hgap(50),
+    vbox({},
+      hbox({}, s11, box('Map'), s12, box('Filter'), s13),
+      hbox({}, s21, box('Map'), s22, box('Filter'), s23),
+      hbox({}, s31, box('Map'), s32, box('Filter'), s33),
+      hbox({}, s41, box('Map'), s42, box('Filter'), s43)),
+    hgap(50),
+    s5,
+    limit,
+    s6,
+    terminal
+  ))
+
+  diagram.connect(bentArrow,
+    spliterator, s11,
+    spliterator, s21,
+    spliterator, s31,
+    spliterator, s41,
+    s13, s5,
+    s23, s5,
+    s33, s5,
+    s43, s5)
+})
+//●◆▲■⬟⬢◩◪▩⬬⬮
+// ]]></script>
+      </div>
+    </li>
+    <li>Serial is faster—won’t parallelize since we don’t know how many elements are needed
+      <pre>ConcurrentBenchmark2.withParallelStream  avgt  100  29.038 ± 2.400  ms/op
+ConcurrentBenchmark2.withSerialStream    avgt  100  26.725 ± 0.882  ms/op
+</pre></li>
+    <li>Why doesn’t the parallel map precompute some elements that might get filtered/limited? </li>
+      <li>It assumes that the mapper is expensive</li>
+    <li>Remedy:
+      <pre>long result = Stream.of(state.randomPointArray)
+    .parallel()
+    <b>.unordered()</b>
+    ...
+</pre></li>
+  </ul>
+
+  <h1>Blocking Tasks</h1>
+  <ul><li>Parallel streams do <em>not</em> work well for tasks that mostly block
+      <pre>String task(int i) {
+    try {
+        Thread.sleep(1000);
+    } catch (InterruptedException _) {
+    }
+    return i + " " + Thread.currentThread().toString();
+}
+</pre></li>
+    <li>Sequential stream: 60 seconds:
+      <pre>IntStream.range(0, 60).mapToObj(this::task).toList()
+</pre></li>
+    <li>Parallel stream: 5 seconds (on my machine)
+      <pre>IntStream.range(0, 60)<b>.parallel()</b>.mapToObj(this::task).toList()
+</pre></li>
+    <li>But it blocks the <em>global</em> fork-join pool</li>
+    <li>Really bad if other concurrent tasks do the same</li>
+    <li>Isn’t that what virtual threads are for?</li>
+    <li><code>mapConcurrent</code>: 1 second
+      <pre>IntStream.range(0, 60).boxed().gather(Gatherers.<b>mapConcurrent</b>(60, this::task)).toList()
+</pre>
+    </li>
+  </ul>
+
+  <!--  TODO picture -->
+
+  <h1>Gatherers</h1>
+  <ul><li>JEP 485 introduces <code>gather</code> for intermediate operations, with five built-in gatherers</li>
+    <li>Fixed and sliding window:
+      <pre>IntStream.range(0, 10).boxed().gather(Gatherers.windowFixed(4)).toList()
+    // [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9]]
+IntStream.range(0, 10).boxed().gather(Gatherers.windowSliding(4)).toList()
+    // [[0, 1, 2, 3], [1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6], [4, 5, 6, 7], [5, 6, 7, 8], [6, 7, 8, 9]]
+</pre></li>
+    <li>Scan and fold (not common):
+      <pre>Integer[] digits = { 1, 7, 2, 9 };
+Stream.of(digits).gather(Gatherers.scan(() -&gt; 0, (x, y) -&gt; x * 10 + y)) // [1, 17, 172, 1729]
+Stream.of(digits).gather(Gatherers.fold(() -&gt; 0, (x, y) -&gt; x * 10 + y)) // [1729]
+</pre></li>
+    <li><code>mapConcurrent</code>—see above</li>
+    <li>Can implement your own, e.g. zip with index ●◆▲ ... → (0, ●), (1, ◆), (2, ▲) ...
+      <pre>static &lt;T&gt; Gatherer&lt;T, ?, Pair&lt;Long, T&gt; zipWithIndex() {
+    class State { long index = 0; }
+    return Gatherer.ofSequential(
+            State::new,
+            Gatherer.Integrator.ofGreedy((state, element, downstream) -&gt;
+                    return downstream.push(new Pair(state.index++, element))));
+}
+</pre>
+    </li>
+    <li>Parallelizable gatherer combines states</li>
+    <li>A greedy integrator never short-circuits</li>
+  </ul>
+
+  <h1>Puzzler Time</h1>
+  <p class='rightimage'><img src='puzzle.jpeg' alt='.jpeg' loading='lazy'/></p>
+  <ul><li>What is bad about this?
+      <pre>var count = stream.map(...).filter(...).toList().size(); // 👎
+</pre></li>
+    <li>Don’t store elements that you don’t use!
+      <pre>var count = stream.map(...).filter(...).count(); // 👍
+</pre></li>
+    <li>Picking every tenth number of an array:
+      <pre>var result = IntStream.range(0, a.length / 10).mapToObj(i -&gt; i * 10) // [0, 10, 20, 30, ...]
+    .map(i -&gt; a[i]).toArray(T::new); // 👎
+</pre>
+    </li>
+    <li>Beware of boxed numbers!
+      <pre>var result = IntStream.range(0, a.length / 10).mapToInt(i -&gt; i * 10).map(i -&gt; a[i]).toArray(T::new) // 👍
+var result = IntStream.range(0, a.length / 10).mapToObj(i -&gt; a[i * 10]).toArray(T::new) // 👍👍
+</pre>
+    </li>
+    <li>Perils of parallel picking:
+      <pre>IntStream.iterate(0, i -&gt; i &lt; a.length, i -&gt; i + 10).parallel().mapToObj(i -&gt; a[i]).toArray(T::new); // 👎
+</pre>
+    </li>
+
+    <li><code>iterate</code> cannot be parallelized. Remedy:
+      <pre>IntStream.range(0, a.length / 10).parallel().map(i -&gt; a[i * 10]).toArray(T::new) // 👍
+</pre></li>
+    <li>Another parallel pick. How many threads?
+      <pre>IntStream.range(0, 1_000_000).boxed().parallel().filter(x -&gt; x % 10 == 0)
+    .map(_ -&gt; Thread.currentThread().getName()).limit(1000).distinct().count();
+</pre></li>
+    <li>Sadly, just 1—see earlier. But if you drop either <code>filter</code> or <code>limit</code>, it parallelizes.</li>
+    <li>What wrong with using a window?
+      <pre>var result = Stream.of(a).gather(Gatherers.windowFixed(10)).map(w -&gt; w.get(0)).toList() // 👎
+</pre></li>
+    <li>The windows create a lot of garbage</li>
+    <li>Why isn’t this a good use of <code>windowFixed?</code></li>
+    <pre>stream.gather(Gatherers.windowFixed(SOME_BATCH_SIZE)).parallel().forEach(Foo::processBatch) // 👎
+</pre>
+    <li>The gatherer is sequential!</li>
+  </ul>
+  <h1>The End</h1>
+  <p class='rightimage'><img src='../../topics/when-to-stream/end.jpeg' alt='.jpeg' loading='lazy'/></p>
+  <ul><li>Streams can lead to more maintainable code…</li>
+    <li>…when used with taste and restraint</li>
+    <li>Some performance penalty over hand-coded loop</li>
+    <li>Understand pipeline optimizations</li>
+    <li>Understand pipeline hazards</li>
+    <li>Parallelization can work great in happy day scenarios</li>
+    <li>Multiple ways to unhappiness</li>
+    <li>Keep using streams</li>
+    <li>Have a mental performance model</li>
+    <li>Thank you!</li>
+    <li>Questions?</li>
+  </ul>
+</body>
+</html>

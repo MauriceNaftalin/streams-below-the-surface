@@ -27,26 +27,6 @@ public class FilterMaxBenchmark {
     @Warmup(iterations = 10, time = 500, timeUnit = MICROSECONDS)
     @Measurement(iterations = 20, time = 500, timeUnit = MICROSECONDS)
     @OutputTimeUnit(MILLISECONDS)
-    public Point withCollection(MyState state, Blackhole blackhole) {
-        List<Point> points = List.of(state.randomPointArray);
-        Point largest = points.get(0);
-        for (int i = 1; i < points.size(); i++) {
-            Point p = points.get(i);
-            if (Points.isShort(p)) {
-                if (Points.lengthSquared(p) > Points.lengthSquared(largest)) {
-                    largest = p;
-                }
-            }
-        }
-        blackhole.consume(largest);
-        return largest;
-    }
-
-    @Benchmark
-    @BenchmarkMode(org.openjdk.jmh.annotations.Mode.AverageTime)
-    @Warmup(iterations = 10, time = 500, timeUnit = MICROSECONDS)
-    @Measurement(iterations = 20, time = 500, timeUnit = MICROSECONDS)
-    @OutputTimeUnit(MILLISECONDS)
     public Point withArray(MyState state, Blackhole blackhole) {
         Point[] points = state.randomPointArray;
         Point largest = points[0];

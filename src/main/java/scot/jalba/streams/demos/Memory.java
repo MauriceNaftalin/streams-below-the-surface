@@ -5,8 +5,8 @@ import java.util.stream.IntStream;
 import static scot.jalba.streams.Util.*;
 
 public class Memory {
-    int LOOPS = 500_000;
-    int POINTS = 200_000;
+    int LOOPS = 5_000_000;
+    int POINTS = 20_000;
 
     void main() {
         int[] coords = randomIntArray(2* POINTS);
