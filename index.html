@@ -540,45 +540,58 @@ Stream.of(digits).gather(Gatherers.fold(() -&gt; 0, (x, y) -&gt; x * 10 + y)) //
     <li>A greedy integrator never short-circuits</li>
   </ul>
 
-  <h1>Puzzler Time</h1>
+  <h1>Puzzler Time (1 of 2)</h1>
   <p class='rightimage'><img src='puzzle.jpeg' alt='.jpeg' loading='lazy'/></p>
-  <ul><li>What is bad about this?
-      <pre>var count = stream.map(...).filter(...).toList().size(); // 👎
-</pre></li>
-    <li>Don’t store elements that you don’t use!
-      <pre>var count = stream.map(...).filter(...).count(); // 👍
-</pre></li>
-    <li>Picking every tenth number of an array:
-      <pre>var result = IntStream.range(0, a.length / 10).mapToObj(i -&gt; i * 10) // [0, 10, 20, 30, ...]
-    .map(i -&gt; a[i]).toArray(T::new); // 👎
+    <p>What is bad about these stream code snippets?</p>
+  <ul><li>How many strings are shorter than their index?</li>
+      <pre>String[] a = ...;
+var count = IntStream.range(0, a.length).filter(i -&gt; a[i].length() &lt; i).toArray().length; // 👎
 </pre>
-    </li>
-    <li>Beware of boxed numbers!
-      <pre>var result = IntStream.range(0, a.length / 10).mapToInt(i -&gt; i * 10).map(i -&gt; a[i]).toArray(T::new) // 👍
-var result = IntStream.range(0, a.length / 10).mapToObj(i -&gt; a[i * 10]).toArray(T::new) // 👍👍
-</pre>
-    </li>
-    <li>Perils of parallel picking:
-      <pre>IntStream.iterate(0, i -&gt; i &lt; a.length, i -&gt; i + 10).parallel().mapToObj(i -&gt; a[i]).toArray(T::new); // 👎
-</pre>
-    </li>
+      <details><summary>Answer</summary>
+        <div>Don’t store elements that you don’t use!
+          <pre>var count = IntStream.range(0, a.length).filter(i -&gt; a[i].length() &lt; i).<b>count()</b>; // 👍
+</pre></div>
+        </details>
 
-    <li><code>iterate</code> cannot be parallelized. Remedy:
-      <pre>IntStream.range(0, a.length / 10).parallel().map(i -&gt; a[i * 10]).toArray(T::new) // 👍
-</pre></li>
-    <li>Another parallel pick. How many threads?
+    <li>Picking every tenth element of an array:
+      <pre>var result = IntStream.range(0, a.length / 10).mapToObj(i -&gt; i * 10) // [0, 10, 20, 30, ...]
+    .map(i -&gt; a[i]).toArray(String::new); // 👎
+</pre>
+
+          <details><summary>Answer</summary>
+        <div> Beware of boxed numbers!
+      <pre>var result = IntStream.range(0, a.length / 10).mapToInt(i -&gt; i * 10).map(i -&gt; a[i]).toArray(T::new) // 👍
+var result = IntStream.range(0, a.length / 10).mapToObj(i -&gt; a[i * 10]).toArray(String::new) // 👍👍
+</pre>
+    </div></details></li>
+          <li>Perils of parallel picking:
+      <pre>IntStream.iterate(0, i -&gt; i &lt; a.length, i -&gt; i + 10).parallel().mapToObj(i -&gt; a[i]).toArray(String::new); // 👎
+</pre>
+              <details><summary>Answer</summary>
+        <div>  <code>iterate</code> cannot be parallelized. Remedy:
+      <pre>IntStream.range(0, a.length / 10).parallel().map(i -&gt; a[i * 10]).toArray(String::new) // 👍
+</pre></div></details></li>
+
+    </ul>
+
+    <h1>Puzzler Time (2 of 2)</h1>
+  <p class='rightimage'><img src='puzzle.jpeg' alt='.jpeg' loading='lazy'/></p>
+
+    <ul><li>Another parallel pick. How many threads?
       <pre>IntStream.range(0, 1_000_000).boxed().parallel().filter(x -&gt; x % 10 == 0)
     .map(_ -&gt; Thread.currentThread().getName()).limit(1000).distinct().count();
-</pre></li>
-    <li>Sadly, just 1—see earlier. But if you drop either <code>filter</code> or <code>limit</code>, it parallelizes.</li>
+</pre>          <details><summary>Answer</summary>
+        <div>  Sadly, just 1—see earlier. But if you drop either <code>filter</code> or <code>limit</code>, it parallelizes.</div>
+          </details>
+      </li>
     <li>What wrong with using a window?
       <pre>var result = Stream.of(a).gather(Gatherers.windowFixed(10)).map(w -&gt; w.get(0)).toList() // 👎
-</pre></li>
-    <li>The windows create a lot of garbage</li>
-    <li>Why isn’t this a good use of <code>windowFixed?</code></li>
-    <pre>stream.gather(Gatherers.windowFixed(SOME_BATCH_SIZE)).parallel().forEach(Foo::processBatch) // 👎
-</pre>
-    <li>The gatherer is sequential!</li>
+</pre>          <details><summary>Answer</summary>
+        <div>  The windows create a lot of garbage</div></details></li>
+    <li>Why isn’t this a good use of <code>windowFixed?</code>
+    <pre>stream.gather(Gatherers.windowFixed(SOME_BATCH_SIZE)).parallel().forEach(Foo::processBatch) // 👎</pre>
+        <details><summary>Answer</summary>
+        <div>  The gatherer is sequential!</div></details></li>
   </ul>
   <h1>The End</h1>
   <p class='rightimage'><img src='../../topics/when-to-stream/end.jpeg' alt='.jpeg' loading='lazy'/></p>
