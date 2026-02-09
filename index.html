@@ -569,7 +569,7 @@ var result = IntStream.range(0, a.length / 10).mapToObj(i -&gt; a[i * 10]).toArr
 </pre>
               <details><summary>Answer</summary>
         <div>  <code>iterate</code> cannot be parallelized. Remedy:
-      <pre>IntStream.range(0, a.length / 10).parallel().map(i -&gt; a[i * 10]).toArray(String::new) // 👍
+      <pre>IntStream.range(0, a.length / 10).parallel().mapToObj(i -&gt; a[i * 10]).toArray(String::new) // 👍
 </pre></div></details></li>
 
     </ul>
