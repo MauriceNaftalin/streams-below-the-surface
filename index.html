@@ -471,11 +471,12 @@ addDiagram(diagram => {
 // ]]></script>
       </div>
     </li>
-    <li>But it doesn't happen—why not?</li>
+    <li>But it doesn't happen:</li>
       <pre>ConcurrentBenchmark2.withParallelStream  avgt  100  29.038 ± 2.400  ms/op
 ConcurrentBenchmark2.withSerialStream    avgt  100  26.725 ± 0.882  ms/op
 </pre></li>
-    <li>Parallel version would have more map operations than the serial that are subsequently filtered/limited</li>
+    <li>Why not?</li>
+    <li>Parallel version would have more "wasted" map operations than the serial</li>
     <li>The framework assumes that mapping is expensive</li>
     <li>Remedy:
       <pre>long result = Stream.of(state.randomPointArray)
