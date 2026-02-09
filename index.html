@@ -543,7 +543,7 @@ Stream.of(digits).gather(Gatherers.fold(() -&gt; 0, (x, y) -&gt; x * 10 + y)) //
 
   <h1>Puzzler Time (1 of 2)</h1>
   <p class='rightimage'><img src='puzzle.jpeg' alt='.jpeg' loading='lazy'/></p>
-    <p>What is bad about these stream code snippets?</p>
+    <p style="font-size:large">What is bad about these stream code snippets?</p>
   <ul><li>How many strings are shorter than their index?</li>
       <pre>String[] a = ...;
 var count = IntStream.range(0, a.length).filter(i -&gt; a[i].length() &lt; i).toArray().length; // 👎
