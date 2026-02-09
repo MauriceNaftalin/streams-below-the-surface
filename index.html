@@ -555,13 +555,14 @@ var count = IntStream.range(0, a.length).filter(i -&gt; a[i].length() &lt; i).to
         </details>
 
     <li>Picking every tenth element of an array:
-      <pre>var result = IntStream.range(0, a.length / 10).mapToObj(i -&gt; i * 10) // [0, 10, 20, 30, ...]
+      <pre>var result = IntStream.range(0, a.length / 10)
+    .mapToObj(i -&gt; i * 10) // [0, 10, 20, 30, ...]
     .map(i -&gt; a[i]).toArray(String::new); // 👎
 </pre>
 
           <details><summary>Answer</summary>
         <div> Beware of boxed numbers!
-      <pre>var result = IntStream.range(0, a.length / 10).mapToInt(i -&gt; i * 10).map(i -&gt; a[i]).toArray(T::new) // 👍
+      <pre>var result = IntStream.range(0, a.length / 10).map(i -&gt; i * 10).mapToObj(i -&gt; a[i]).toArray(T::new) // 👍
 var result = IntStream.range(0, a.length / 10).mapToObj(i -&gt; a[i * 10]).toArray(String::new) // 👍👍
 </pre>
     </div></details></li>
