@@ -420,7 +420,7 @@ addDiagram(diagram => {
     .max()
     .orElseThrow();
 </pre></li>
-      <li>This is not actually going to happen:
+      <li>This is what we would like:
       <div class='diagram'><script>//<![CDATA[
 addDiagram(diagram => {
   const spliterator = box('Spliterator')
@@ -471,12 +471,12 @@ addDiagram(diagram => {
 // ]]></script>
       </div>
     </li>
-    <li>Serial is faster—won’t parallelize since we don’t know how many elements are needed
+    <li>But it doesn't happen—why not?</li>
       <pre>ConcurrentBenchmark2.withParallelStream  avgt  100  29.038 ± 2.400  ms/op
 ConcurrentBenchmark2.withSerialStream    avgt  100  26.725 ± 0.882  ms/op
 </pre></li>
-    <li>Why doesn’t the parallel map precompute some elements that might get filtered/limited? </li>
-      <li>It assumes that the mapper is expensive</li>
+    <li>Parallel version would have more map operations than the serial that are subsequently filtered/limited</li>
+    <li>The framework assumes that mapping is expensive</li>
     <li>Remedy:
       <pre>long result = Stream.of(state.randomPointArray)
     .parallel()
